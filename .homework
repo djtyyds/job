@@ -1,0 +1,55 @@
+package main
+
+import (
+	"database/sql"
+	"github.com/gin-gonic/gin"
+	"log"
+	"net/http"
+	_"github.com/go-sql-driver/mysql"
+)
+
+func main(){
+	en:=gin.Default()
+	en.POST("/message",message)
+	en.POST("/reply",reply)
+	en.Run()
+}
+     
+var DB *sql.DB
+var err error
+func message(c *gin.Context){
+	DB, err = sql.Open("mysql", "root:123456@tcp(localhost:3306)/message")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer DB.Close()
+	stmt, err := DB.Prepare("INSERT INTO message(message) VALUES(?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	message:=c.Request.PostForm
+	_, err = stmt.Exec(message)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+func reply(c *gin.Context){
+	DB, err = sql.Open("mysql", "root:123456@tcp(localhost:3306)/message")
+	if err != nil {
+		log.Fatal(err)
+	}
+	name:=c.Request.FormValue("name")//写出回复的对象
+	err:=DB.QueryRow("select name from message where name =?" ,name)
+	if err!=nil{
+		c.JSON(http.StatusBadRequest,"没有这个对象....")
+	}
+	stmt, err2 := DB.Prepare("INSERT INTO message(reply) VALUE(?)")
+	if err2 != nil {
+		log.Fatal(err)
+	}
+	reply:=c.Request.PostForm
+	_, err3 := stmt.Exec(reply)
+	if err3 != nil {
+		log.Fatal(err)
+	}
+}
