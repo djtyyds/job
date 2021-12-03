@@ -1,0 +1,92 @@
+package main
+
+import (
+	"database/sql"
+	"github.com/gin-gonic/gin"
+	"log"
+	"net/http"
+)
+var DB *sql.DB
+var err error
+
+func main(){
+	en:=gin.Default()
+	en.POST("/login",login)
+	en.POST("/register",Register)
+	en.POST("/findpwd",findpwd)
+	en.Run()
+}
+//登录
+func login(c *gin.Context){
+	DB, err = sql.Open("mysql", "root:123456@tcp(localhost:3306)/test")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer DB.Close()
+	name := c.Request.URL.Query().Get("account")
+	passWord := c.Request.URL.Query().Get("password")
+	err=DB.QueryRow("select * from user where name =? and password=?",name,passWord).Scan(&name,&passWord)
+	if err!=nil{
+		c.JSON(http.StatusBadRequest,gin.H{"error":err.Error()})
+	}else{
+		c.JSON(http.StatusOK,gin.H{"status":"200"})
+	}
+}
+//注册
+func Register(c *gin.Context) {
+	DB, err = sql.Open("mysql", "root:123456@tcp(localhost:3306)/test")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer DB.Close()
+	//获取用户名、密码
+	name := c.Request.FormValue("Name")
+	password := c.Request.FormValue("Password")
+	err=DB.QueryRow("select * from user where name=?",name).Scan(&name)
+	if err==nil{
+		c.String(http.StatusOK,"注册成功！")
+		mibao:=c.Request.FormValue("mibao")
+		answer:=c.Request.FormValue("answer")
+		stmt, err := DB.Prepare("INSERT INTO user(name,password,mibao,answer) VALUES(?,?,?,?)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = stmt.Exec(name,password,mibao,answer)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}else{
+		c.JSON(http.StatusBadRequest, "该账户已存在！！")
+	}
+}
+func findpwd(c *gin.Context){
+	DB, err = sql.Open("mysql", "root:123456@tcp(localhost:3306)/test")
+	if err != nil {
+		log.Fatal(err)
+	}
+	name:=c.Request.FormValue("name")
+	err=DB.QueryRow("select * from user where name =?",name).Scan(&name)
+	if err!=nil{
+		c.JSON(http.StatusBadRequest,"无改用户")
+	}else {
+		var mibao,answer string
+		err=DB.QueryRow("select mibao,answer from user where name =?",name).Scan(&mibao,&answer)
+		c.JSON(http.StatusOK,mibao)
+		answer1:=c.Request.FormValue("answer")
+		if answer1!=answer{
+			c.JSON(http.StatusBadRequest,"答案有错！")
+		}else {
+			c.JSON(http.StatusOK,"请输入新的密码:")
+			repassword:=c.Request.FormValue("newpassword")
+			stmt, err := DB.Prepare("UPDATE user SET password=? WHENEVER name =? VALUES(?,?)")
+			if err != nil {
+				log.Fatal(err)
+			}
+			_,err=stmt.Exec(repassword,name)
+			if err!=nil{
+				log.Fatal(err)
+			}
+		}
+	}
+}
+
